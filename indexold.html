@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brigels Cost Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-size: 2em;
+        }
+        #peopleModal {
+            display: none;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+        }
+        canvas {
+            max-width: 100%;
+            margin-top: 20px;
+        }
+    </style>
+    <script>
+        function showPeopleModal() {
+            document.getElementById('peopleModal').style.display = 'block';
+        }
+
+        function hidePeopleModal() {
+            document.getElementById('peopleModal').style.display = 'none';
+        }
+
+        function calculateCost() {
+            let startDate = new Date(document.getElementById('startDate').value);
+            let endDate = new Date(document.getElementById('endDate').value);
+            let numPeople = parseInt(document.getElementById('numPeople').value);
+            let variablePeople = document.getElementById('variablePeople').checked;
+            
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || isNaN(numPeople) || numPeople < 1 || numPeople > 8) {
+                alert("Please enter valid dates and number of people (1-8).");
+                return;
+            }
+            
+            let nights = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+            if (nights <= 0) {
+                alert("End date must be after start date.");
+                return;
+            }
+            
+            let totalCost = 0;
+            let perPersonCosts = {};
+            let names = ["Alice", "Bob", "Charlie", "David", "Emma", "Frank", "Grace", "Hannah"];
+            
+            if (variablePeople) {
+                let peopleConfig = document.getElementById('peoplePerNight').value.trim();
+                let peopleArray = peopleConfig.split(",").map(num => parseInt(num.trim()));
+                
+                if (peopleArray.length !== nights || peopleArray.some(p => isNaN(p) || p < 1 || p > 8)) {
+                    alert("Invalid input for variable number of people. Please enter numbers separated by commas.");
+                    return;
+                }
+                
+                for (let i = 0; i < nights; i++) {
+                    let nightlyCost = calculateNightlyCost(peopleArray[i], startDate);
+                    totalCost += nightlyCost;
+                    let share = nightlyCost / peopleArray[i];
+                    for (let j = 0; j < peopleArray[i]; j++) {
+                        perPersonCosts[names[j]] = (perPersonCosts[names[j]] || 0) + share;
+                    }
+                    startDate.setDate(startDate.getDate() + 1);
+                }
+            } else {
+                for (let i = 0; i < nights; i++) {
+                    let nightlyCost = calculateNightlyCost(numPeople, startDate);
+                    totalCost += nightlyCost;
+                    let share = nightlyCost / numPeople;
+                    for (let j = 0; j < numPeople; j++) {
+                        perPersonCosts[names[j]] = (perPersonCosts[names[j]] || 0) + share;
+                    }
+                    startDate.setDate(startDate.getDate() + 1);
+                }
+            }
+            
+            document.getElementById('result').innerText = "Total Cost: " + totalCost.toFixed(2) + " fränkli";
+            hidePeopleModal();
+            generateChart(perPersonCosts);
+        }
+        
+        function calculateNightlyCost(people, date) {
+            let baseCost = 100;
+            let extraPersonCost = (people > 4) ? (people - 4) * 20 : 0;
+            let heatingCost = (date.getMonth() >= 9 || date.getMonth() <= 3) ? 20 : 0;
+            let tax = people * 3;
+            
+            return baseCost + extraPersonCost + heatingCost + tax;
+        }
+        
+        function generateChart(costs) {
+            let ctx = document.getElementById('costChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(costs),
+                    datasets: [{
+                        label: 'Cost per Person (fränkli)',
+                        data: Object.values(costs),
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+    <h2>Brigels Cost Calculator</h2>
+    <label for="startDate">Start Date:</label>
+    <input type="date" id="startDate"><br>
+    <label for="endDate">End Date:</label>
+    <input type="date" id="endDate"><br>
+    <label for="numPeople">Number of People (1-8):</label>
+    <input type="number" id="numPeople" min="1" max="8"><br>
+    <label for="variablePeople">Variable number of people per night?</label>
+    <input type="checkbox" id="variablePeople" onchange="if(this.checked) showPeopleModal();"><br>
+    <button onclick="calculateCost()">Calculate</button>
+    <p id="result"></p>
+    <canvas id="costChart"></canvas>
+
+    <div id="peopleModal">
+        <h3>Enter number of people per night (comma-separated):</h3>
+        <input type="text" id="peoplePerNight"><br>
+        <button onclick="calculateCost()">Submit</button>
+        <button onclick="hidePeopleModal()">Cancel</button>
+    </div>
+</body>
+</html>	

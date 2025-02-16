@@ -1,7 +1,304 @@
-function showTime() {
-	document.getElementById('currentTime').innerHTML = new Date().toUTCString();
-}
-showTime();
-setInterval(function () {
-	showTime();
-}, 1000);
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Brigels Cost Calculator</title>
+    <script>
+        function toggleVariablePeople() {
+            var variablePeople = document.getElementById("variablePeople").checked;
+            document.getElementById("fixedPeopleSection").style.display = variablePeople ? "none" : "block";
+            document.getElementById("variablePeopleSection").style.display = variablePeople ? "block" : "none";
+        }
+        
+        function addPerson() {
+            var container = document.getElementById("peopleList");
+            var count = container.children.length + 1;
+            
+            var div = document.createElement("div");
+            div.className = "person-entry";
+            div.innerHTML = `
+                <label>Name:</label>
+                <input type="text" value="Person ${count}">
+                <label>Start Date:</label>
+                <input type="date" class="person-start">
+                <label>End Date:</label>
+                <input type="date" class="person-end">
+                <label>Type:</label>
+                <select class="person-type">
+                    <option value="adult">Adult</option>
+                    <option value="teenager">Teenager</option>
+                    <option value="child">Child</option>
+                </select>
+                <button onclick="removePerson(this)">Remove</button>
+            `;
+            container.appendChild(div);
+        }
+        
+        function removePerson(button) {
+            var container = document.getElementById("peopleList");
+            if (container.children.length > 1) {
+                button.parentElement.remove();
+            }
+        }
+        
+        function resetForm() {
+            document.getElementById("firstName").value = "";
+            document.getElementById("lastName").value = "";
+            document.getElementById("address").value = "";
+            document.getElementById("city").value = "";
+            document.getElementById("zip").value = "";
+            document.getElementById("email").value = "";
+            document.getElementById("startDate").value = "";
+            document.getElementById("endDate").value = "";
+            document.getElementById("adults").value = "1";
+            document.getElementById("teenagers").value = "0";
+            document.getElementById("children").value = "0";
+            document.getElementById("variablePeople").checked = false;
+            toggleVariablePeople();
+            document.getElementById("peopleList").innerHTML = "";
+            document.getElementById("errorMessage").innerText = "";
+            document.getElementById("totalCost").innerText = "";
+            document.getElementById("taxCost").innerText = "";
+            document.getElementById("heatingCost").innerText = "";
+            document.getElementById("finalAmount").innerText = "";
+            document.getElementById("summaryTableContainer").innerHTML = "";
+        }
+        
+        function generateTable() {
+            let tableContainer = document.getElementById("summaryTableContainer");
+            tableContainer.innerHTML = "";
+            
+            let table = document.createElement("table");
+            table.border = "1";
+            let headerRow = table.insertRow();
+            let headers = ["Name", "From", "To", "Nights", "Overnight Cost", "Tax", "Heating", "Total"];
+            headers.forEach(header => {
+                let th = document.createElement("th");
+                th.innerText = header;
+                headerRow.appendChild(th);
+            });
+            
+            let peopleData = {};
+            let totalPeopleByDate = {};
+            let peopleEntries = document.querySelectorAll(".person-entry");
+            if (peopleEntries.length > 0) {
+                peopleEntries.forEach(entry => {
+                    let name = entry.querySelector("input[type=text]").value;
+                    let start = new Date(entry.querySelector(".person-start").value);
+                    let end = new Date(entry.querySelector(".person-end").value);
+                    let type = entry.querySelector(".person-type").value;
+                    let nights = (end - start) / (1000 * 60 * 60 * 24);
+                    
+                    if (!peopleData[name]) {
+                        peopleData[name] = { start: start, end: end, nights: nights, baseCost: 0, tax: 0, heating: 0, type: type };
+                    } else {
+                        peopleData[name].end = end;
+                        peopleData[name].nights += nights;
+                    }
+                    
+                    for (let d = new Date(start); d < new Date(end); d.setDate(d.getDate() + 1)) {
+                        let day = d.toISOString().split('T')[0];
+                        totalPeopleByDate[day] = (totalPeopleByDate[day] || 0) + 1;
+                    }
+                });
+            }
+            
+            let totalOvernight = 0, totalTax = 0, totalHeating = 0;
+            for (let name in peopleData) {
+                let data = peopleData[name];
+                let baseCost = 0, tax = 0, heating = 0;
+                
+                for (let d = new Date(data.start); d < new Date(data.end); d.setDate(d.getDate() + 1)) {
+                    let day = d.toISOString().split('T')[0];
+                    let dailyShare = totalPeopleByDate[day];
+                    let baseNightCost = 100 + Math.max(0, dailyShare - 4) * 20;
+                    baseCost += (baseNightCost / dailyShare);
+                    
+                    if (data.type === "adult") {
+                        tax += 3;
+                    } else if (data.type === "teenager") {
+                        tax += 1.5;
+                    }
+                    
+                    if (d.getMonth() >= 9 || d.getMonth() <= 2) {
+                        heating += (20 / dailyShare);
+                    }
+                }
+                
+                let total = baseCost + tax + heating;
+                totalOvernight += baseCost;
+                totalTax += tax;
+                totalHeating += heating;
+                
+                let row = table.insertRow();
+                [name, data.start.toISOString().split('T')[0], data.end.toISOString().split('T')[0], data.nights, `CHF ${baseCost.toFixed(2)}`, `CHF ${tax.toFixed(2)}`, `CHF ${heating.toFixed(2)}`, `CHF ${total.toFixed(2)}`].forEach(text => {
+                    let cell = row.insertCell();
+                    cell.innerText = text;
+                });
+            }
+            
+            let finalRow = table.insertRow();
+            finalRow.insertCell().innerText = "Total";
+            finalRow.insertCell().innerText = "";
+            finalRow.insertCell().innerText = "";
+            finalRow.insertCell().innerText = "";
+            finalRow.insertCell().innerText = `CHF ${totalOvernight.toFixed(2)}`;
+            finalRow.insertCell().innerText = `CHF ${totalTax.toFixed(2)}`;
+            finalRow.insertCell().innerText = `CHF ${totalHeating.toFixed(2)}`;
+            finalRow.insertCell().innerText = `CHF ${(totalOvernight + totalTax + totalHeating).toFixed(2)}`;
+            
+            
+            tableContainer.appendChild(table);
+        }
+        
+         function calculateTotal() {
+            document.getElementById("errorMessage").innerText = "";
+            let totalCost = 0;
+            let heatingCost = 0;
+            let taxCost = 0;
+            let finalAmount = 0;
+            let nights = 0;
+            
+            var variablePeople = document.getElementById("variablePeople").checked;
+            
+            if (variablePeople) {
+                let peopleEntries = document.querySelectorAll(".person-entry");
+                if (peopleEntries.length === 0) {
+                    document.getElementById("errorMessage").innerText = "Please add at least one person.";
+                    return;
+                }
+                
+                let peopleByDate = {};
+                peopleEntries.forEach(entry => {
+                    let start = new Date(entry.querySelector(".person-start").value);
+                    let end = new Date(entry.querySelector(".person-end").value);
+                    let type = entry.querySelector(".person-type").value;
+                    
+                    if (start >= end || isNaN(start) || isNaN(end)) {
+                        document.getElementById("errorMessage").innerText = "Invalid date range for one or more persons.";
+                        return;
+                    }
+                    
+                    let personNights = (end - start) / (1000 * 60 * 60 * 24);
+                    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+                        let day = d.toISOString().split('T')[0];
+                        if (!peopleByDate[day]) peopleByDate[day] = { total: 0, adults: 0, teenagers: 0 };
+                        peopleByDate[day].total++;
+                        if (type === "adult") peopleByDate[day].adults++;
+                        if (type === "teenager") peopleByDate[day].teenagers++;
+                        if (peopleByDate[day].total > 8) {
+                            document.getElementById("errorMessage").innerText = "More than 8 persons not permitted by fire regulations.";
+                            return;
+                        }
+                    }
+                });
+                
+                for (let day in peopleByDate) {
+                    let count = peopleByDate[day].total;
+                    let adults = peopleByDate[day].adults;
+                    let teenagers = peopleByDate[day].teenagers;
+                    let baseCost = 100;
+                    if (count > 4) baseCost += (count - 4) * 20;
+                    let tax = (adults * 3) + (teenagers * 1.5);
+                    let heating = new Date(day).getMonth() >= 9 || new Date(day).getMonth() <= 2 ? 20 : 0;
+                    totalCost += baseCost;
+                    heatingCost += heating;
+                    taxCost += tax;
+                    finalAmount += baseCost + tax + heating;
+                }
+            } else {
+                let adults = parseInt(document.getElementById("adults").value) || 0;
+                let teenagers = parseInt(document.getElementById("teenagers").value) || 0;
+                let children = parseInt(document.getElementById("children").value) || 0;
+                let totalPeople = adults + teenagers + children;
+                
+                if (totalPeople > 8) {
+                    document.getElementById("errorMessage").innerText = "More than 8 persons not permitted by fire regulations.";
+                    return;
+                }
+                
+                let startDate = new Date(document.getElementById("startDate").value);
+                let endDate = new Date(document.getElementById("endDate").value);
+                nights = (endDate - startDate) / (1000 * 60 * 60 * 24);
+                
+                if (startDate >= endDate || isNaN(nights)) {
+                    document.getElementById("errorMessage").innerText = "Invalid start or end date.";
+                    return;
+                }
+                
+                totalCost = 100 * nights;
+                if (totalPeople > 4) totalCost += (totalPeople - 4) * 20 * nights;
+                taxCost = (adults * 3 * nights) + (teenagers * 1.5 * nights);
+                if (startDate.getMonth() >= 9 || startDate.getMonth() <= 2) heatingCost = 20 * nights;
+                finalAmount = totalCost + taxCost + heatingCost;
+            }
+            
+            
+            document.getElementById("totalCost").innerText = "Total Cost: CHF " + totalCost.toFixed(2);
+            document.getElementById("taxCost").innerText = "Tax Cost: CHF " + taxCost.toFixed(2);
+            document.getElementById("heatingCost").innerText = "Heating Surcharge: CHF " + heatingCost.toFixed(2);
+            document.getElementById("finalAmount").innerText = "Final Amount: CHF " + finalAmount.toFixed(2);
+            
+            
+            if (variablePeople) {
+                generateTable();
+            }
+           
+        }
+        
+    </script>
+</head>
+<body>
+    <h2>Brigels Cost Calculator</h2>
+    
+    <div id="contactInformation">
+        <label for="firstName">First Name:</label>
+        <input type="text" id="firstName"><br>
+        
+        <label for="lastName">Family Name:</label>
+        <input type="text" id="lastName"><br>
+        
+        <label for="address">Address:</label>
+        <input type="text" id="address"><br>
+        
+        <label for="city">City:</label>
+        <input type="text" id="city"><br>
+        
+        <label for="zip">Zip Code:</label>
+        <input type="text" id="zip"><br>
+        
+        <label for="email">Email Address:</label>
+        <input type="email" id="email"><br>
+    </div>
+    
+    <label><input type="checkbox" id="variablePeople" onclick="toggleVariablePeople()"> Variable number of people per night?</label><br>
+    
+    <div id="fixedPeopleSection">
+        <label for="startDate">Start Date:</label>
+        <input type="date" id="startDate"><br>
+        <label for="endDate">End Date:</label>
+        <input type="date" id="endDate"><br>
+        <label for="adults">Number of Adults:</label>
+        <input type="number" id="adults" min="0" value="1"><br>
+        <label for="teenagers">Number of Teenagers (&lt;17):</label>
+        <input type="number" id="teenagers" min="0" value="0"><br>
+        <label for="children">Number of Children (&lt;13):</label>
+        <input type="number" id="children" min="0" value="0"><br>
+    </div>
+    
+    <div id="variablePeopleSection" style="display: none;">
+        <div id="peopleList"></div>
+        <button onclick="addPerson()">Add Person</button>
+    </div>
+    
+    <button onclick="calculateTotal()">Calculate</button>
+    <button onclick="resetForm()">Reset</button>
+    
+     <p id="errorMessage" style="color: red;"></p>
+    <p id="totalCost"></p>
+    <p id="taxCost"></p>
+    <p id="heatingCost"></p>
+    <p id="finalAmount"></p>
+    
+    <div id="summaryTableContainer"></div>
+</body>
+</html>
